@@ -193,7 +193,7 @@ DMA_InitTypeDef DMA_InitStructure;
 DMA_InitTypeDef AUDIO_MAL_DMA_InitStructure;
 
 uint32_t AudioTotalSize = 0xFFFF; /* This variable holds the total size of the audio file */
-uint32_t AudioRemSize   = 0xFFFF; /* This variable holds the remaining data in audio file */
+uint32_t AudioRemSize   = 0x0000; /* This variable holds the remaining data in audio file */
 uint16_t *CurrentPos ;             /* This variable holds the current position of audio pointer */
 
 __IO uint32_t  CODECTimeout = CODEC_LONG_TIMEOUT;   
@@ -663,15 +663,15 @@ static uint32_t Codec_Init(uint16_t OutputDevice, uint8_t Volume, uint32_t Audio
   if (CurrAudioInterface != AUDIO_INTERFACE_DAC)
   {  
     /* Disable the digital soft ramp */
-    counter += Codec_WriteRegister(0x0E, 0x04);
+    // counter += Codec_WriteRegister(0x0E, 0x04); // 0x04 is deemphasis, soft ramp = 0x02 !!
   }
   /* Disable the limiter attack level */
   counter += Codec_WriteRegister(0x27, 0x00);
   /* Adjust Bass and Treble levels */
   counter += Codec_WriteRegister(0x1F, 0x0F);
   /* Adjust PCM volume level */
-  counter += Codec_WriteRegister(0x1A, 0x0A);
-  counter += Codec_WriteRegister(0x1B, 0x0A);
+  // counter += Codec_WriteRegister(0x1A, 0x0A);
+  // counter += Codec_WriteRegister(0x1B, 0x0A);
 
   /* Configure the I2S peripheral */
   Codec_AudioInterface_Init(AudioFreq);  
