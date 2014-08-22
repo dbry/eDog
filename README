@@ -1,0 +1,169 @@
+////////////////////////////////////////////////////////////////////////////
+//                             **** eDog ****                             //
+//                                                                        //
+//                  Electronic Dog Home Security System                   //
+//                                 on the                                 //
+//                           STM32F4-Discovery                            //
+//                                                                        //
+//                    Copyright (c) 2014 David Bryant                     //
+//                          All Rights Reserved                           //
+//        Distributed under the GNU Software License (see COPYING)        //
+////////////////////////////////////////////////////////////////////////////
+
+The idea is simple. If someone thinks you have a big mean dog in your house,
+they are far less likely to try to break in and steal your stuff (or hurt
+you), and until now there were only two ways to achieve this. You could buy
+a big mean dog or you could buy a "beware of dog" sign and put it on your
+door. The former is a lot of trouble and the latter is probably not very
+effective. Well, now there's a third way: the eDog!!
+
+Implemented on the incredibly cheap (about $20) STM32F4-Discovery evaluation
+board from ST Microelectronics, the eDog continuously monitors your home with
+its on-board MEMS microphone. When it detects someone knocking at your door or
+ringing your doorbell, it renders the menacing sound of a big dog barking
+through your audio system (which it is connected to). At the correct volume
+level, this is very convincing. In fact, not a single person who has come by
+thought anything other than that there was a dog in the house.
+
+The STM32F407VG CPU on the Discovery board is great for this project because
+it has the Cortex-M4 core with the single-precision FPU that makes the audio
+processing algorithms so much easier to implement. I was often surprised how
+little my code was taxing the CPU, and I was amazed when I realized that the
+ST demo code sampling the digital microphone was executing 64,000 interrupts
+per second without a hiccup!
+
+                   ***** Building and Installation *****
+
+ST provides a complete development tree for the Discovery board that works
+with several commercial development environments including Keil's uVision4,
+which is the one I chose. The free evaluation version of this toolset has a
+32K target size limit, but that is plenty for this task. I started with their
+Audio_playback_and_record project as a reference and added and modified code
+as needed, and then set it up as a new project. You will also need ST's STM32
+ST-LINK Utility to flash the raw PCM audio data into the internal flash,
+above the code (see Projects/eDog/bin/readme.txt).
+
+The knocking detection algorithm works without any configuration because it
+simply finds appropriately spaced transients. However, the doorbell detection
+uses a narrow bandpass filter tuned to the fundamental frequency of the actual
+bell. I have an old standard electro-mechanical doorbell from about 1980, and
+I measured the fundamental frequency (of the higher "ding", not the lower
+"dong") to be 770 Hz. This may or may not be the most common frequency around.
+I also measured another, newer, wireless doorbell (that had no "dong") to be
+785 Hz, and that filter is in the source too (commented out).
+
+To generate the custom coefficients for the biquad filter, you can use this
+online tool and parameters:
+
+       Site: http://www.earlevel.com/main/2013/10/13/biquad-calculator-v2/
+       Type: bandpass
+Sample rate: 16000
+    Fc (Hz): 770 (the measured fundamental frequency of your bell)
+          Q: 100
+
+Enter the five generated coefficients into the call to biquad_init() in the
+scan.c module. Be sure to add the "F" at the end of the constants. 
+
+Of course, if you want to just program the Discovery board without actually
+building the program, you can use the prebuilt binary (in Projects/eDog/bin),
+but this will not allow you to customize the filter for your doorbell (which
+might not be exactly 770 Hz).
+
+It might very well be possible to build and flash the whole thing using free
+tools on Linux, but I have not tried that yet.
+
+                         ***** Using the eDog *****
+
+Simply attach the headphone output of the Discovery board to an unused audio
+input on your AV receiver. You might need to use a cable with a 1/8" stereo
+jack on one end and dual RCA connectors on the other end.
+
+The Discovery board will also need power. The easiest way is to simply plug a
+USB power adapter into a wall outlet and connect that to the ST/LINK USB
+connector (CN1) on the Discovery board with a standard USB cable. It might be
+possible to simply attach that USB connector to a USB jack on your AV receiver
+(if it has one) but I found that my AV receiver would only power the board for
+a second or so before shutting it down (presumably because it did not like
+what enumerated there).
+
+When powered, the board will immediately start running the eDog application,
+indicated by the flashing green LED. There are two settings available from the
+blue "user" button. First, there is the "one-bark" mode which causes the eDog
+to produce a single, short bark at each detection instead of rotating through
+the regular long (about 5 second) sequences of barks. This is handy for
+testing the sensitivity because you don't have to wait for the barking to stop
+after each trigger. This mode is indicated with the blue LED.
+
+There is also a high sensitivity mode. This mode, indicated by the rapidly
+flashing green LED, loosens several detection criteria and so will catch even
+the faintest "knocks" in any part of your house. However, this mode will also
+more often falsely trigger on normal activity around the house (like walking
+and talking), and can even trigger without any apparent noise at all (although
+this is rare).
+
+You should experiment with the two sensitivity modes to determine which mode
+is the most appropriate for a given situation. For example, if a neighbor
+could be disturbed by sudden bursts of barking in the middle of the night,
+then that might be a good time to NOT use the high sensitivity mode. If your
+neighbor has trouble sleeping, or has no sense of humor, or is an avid gun
+collector, you might want to avoid using the eDog at night altogether!
+
+In summary, here are the 4 operating states that are accessed with the blue
+user button and how they are identified:
+
+1) Normal sensitivity mode (green LED flashing slowly, blue LED off)
+2) Normal sensitivity one-bark mode (green LED flashing slowly, blue LED on)
+3) High sensitivity mode (green LED flashing quickly, blue LED off)
+4) High sensitivity one-bark mode (green LED flashing quickly, blue LED on)
+
+When the eDog is triggered, the orange LED flashes while the barking audio is
+playing and, when it's finished, the green LED resumes. This can be used to
+verify operation without connecting the audio.
+
+The red LED indicates the that input microphone is overloaded. This should
+normally only happen with very loud nearby sounds, or when handling the
+Discovery board. It does not indicate a problem and is mostly just an easy
+way to see that the board is running properly.
+
+The eDog automatically adjust its sensitivity to the environment so that it
+can react to fairly quiet knocking (say, on the other side of the house)
+without falsely triggering all the time when there's more activity. However,
+if you are active near the eDog when it's on (even in the normal sensitivity
+mode), it WILL falsely trigger occasionally, so it's not really recommended
+that you do that (unless being startled every few minutes does not bother
+you).
+
+                            ***** The Code *****
+
+The code is based on the Audio_playback_and_record demonstration project
+provided in the Discovery firmware tree, and so many of the files in that
+project are carried over, but are heavily modified and cleaned up. There
+are also several completely new modules:
+
+    scan.c -- this is the code that scans PCM audio for knocks and rings
+    scantest.c -- this is a harness for non-embedded testing of scan.c 
+    serial.c -- provides buffered debug logging output on USART2
+
+The main functionality is implemented in waveplayer.c, and contains, in
+addition to the eDog function, the ability to generate sine waves into the
+headphones and also to echo the microphone directly to the headphones with a
+delay determined by the defined buffer size. These other two options are
+enabled with macro definitions.
+
+                     ***** Liability Limitations *****
+
+In addition to the liability limitations outlined in the GNU license and
+the ST license, I want to make other liability limitations clear. Neither
+I nor ST are in any way responsible if
+
+  * the eDog fails to trigger at a crucial moment and someone burgles your
+    home
+
+  * the eDog startles someone and they have a heart attack or soil their
+    clothing
+
+  * the eDog crashes and generates noise that blows out your speakers
+
+  * the eDog starts barking all night and your neighbor comes over and,
+    well, you get the idea
+
