@@ -27,6 +27,8 @@
 // program and process raw audio data using the same algorithm as the embedded version. To aid in
 // debugging it can also create output files containing intermediate values inside the audio
 // scanning algorithm used for detecting "knocks" and "rings".
+//
+// Build right here on Cygwin or Linux:  gcc -I../inc scantest.c scan.c -o scantest
 
 #define BUFFER_SAMPLES 16
 
@@ -136,13 +138,13 @@ int main (argc, argv) int argc; char **argv;
             return 1;
         }
 
-        out_sample_buffer = malloc (output_words * sizeof (int16_t));
+        out_sample_buffer = malloc (output_words * sizeof (int16_t) * BUFFER_SAMPLES);
     }
 
     scan_audio_init ();
 
     while (1) {
-        int sample_count = fread (in_sample_buffer, sizeof (int16_t), 16, infile);
+        int sample_count = fread (in_sample_buffer, sizeof (int16_t), BUFFER_SAMPLES, infile);
         int res;
 
         if (!sample_count)
@@ -163,6 +165,11 @@ int main (argc, argv) int argc; char **argv;
     }
 
     printf ("final results: %d knocks and %d rings detected\n", knocks, rings);
+
+    if (out_sample_buffer) free (out_sample_buffer);
+    if (outfile) fclose (outfile);
+    if (infile) fclose (infile);
+
     return 0;
 }
 
